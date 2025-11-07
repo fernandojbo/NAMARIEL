@@ -1,0 +1,262 @@
+<!--
+Arquivo 1: index.html  (PWA principal)
+Arquivo 2: sw.js       (Service Worker)
+Arquivo 3: google_apps_script.txt (opcional: script para sincronizar com Google Sheets)
+
+Instruções: Salve os arquivos separados com os nomes indicados na mesma pasta e hospede a pasta.
+--><!-- ==================== index.html ==================== --><!doctype html>
+
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0B6E4F" />
+  <link rel="manifest" href="manifest.json">
+  <title>NAMARIEL</title>
+  <style>
+    :root{--accent:#0B6E4F;--muted:#666}
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:0;padding:0;background:#f7f7f8;color:#111}
+    header{background:var(--accent);color:white;padding:12px 16px}
+    main{padding:12px;max-width:900px;margin:0 auto}
+    label{display:block;margin:8px 0 4px;font-weight:600}
+    input,textarea,select,button{width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:16px}
+    .row{display:flex;gap:8px}
+    .row > *{flex:1}
+    .photo-preview{height:200px;border:1px dashed #ccc;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#fff;overflow:hidden}
+    .history-item{background:white;border-radius:10px;padding:10px;margin:10px 0;box-shadow:0 1px 2px rgba(0,0,0,0.04)}
+    small{color:var(--muted)}
+    .actions{display:flex;gap:8px;margin-top:8px}
+    .camera-btn{background:transparent;border:1px solid #ddd}
+    footer{padding:12px;text-align:center;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>NAMARIEL</h1>
+    <div style="font-size:14px">Registro de carregamento — offline & instalável</div>
+  </header>  <main>
+    <form id="form">
+      <label for="truck">Placa do caminhão</label>
+      <input id="truck" placeholder="AAA0A00" required><label for="driver">Nome do motorista</label>
+  <input id="driver" placeholder="Nome do motorista" required>
+
+  <label for="destination">Destino</label>
+  <input id="destination" placeholder="Cidade / Local" required>
+
+  <label for="quantity">Quantidade de volumes</label>
+  <input id="quantity" type="number" min="0" placeholder="Ex: 14" required>
+
+  <label for="notes">Observações</label>
+  <textarea id="notes" rows="2" placeholder="Ex: pallet desmontado, frágil"></textarea>
+
+  <label>Foto do pallet / carga</label>
+  <div class="photo-preview" id="photoPreview">Nenhuma foto</div>
+  <div class="row actions">
+    <button type="button" id="openCamera">Abrir câmera</button>
+    <button type="button" id="takePhoto">Tirar foto</button>
+    <button type="button" id="clearPhoto">Limpar foto</button>
+  </div>
+
+  <div style="margin-top:12px">
+    <button type="submit" id="saveBtn">Salvar registro</button>
+  </div>
+</form>
+
+<section style="margin-top:20px">
+  <h2>Histórico</h2>
+  <div style="display:flex;gap:8px;margin-bottom:8px">
+    <button id="syncBtn" type="button">Sincronizar (quando online)</button>
+    <button id="exportCsv" type="button">Exportar CSV</button>
+    <button id="clearAll" type="button">Apagar tudo</button>
+  </div>
+  <div id="history"></div>
+</section>
+
+  </main>  <footer>
+    NAMARIEL — Registro de cargas (offline). Abra no Chrome e escolha "Adicionar à tela inicial" para instalar.
+  </footer>  <!-- Hidden video/canvas para captura --><video id="video" autoplay playsinline style="display:none"></video> <canvas id="canvas" style="display:none"></canvas>
+
+  <script>
+  // --- IndexedDB simples ---
+  const DB_NAME = 'namariel-db';
+  const STORE = 'records';
+  let db;
+  function openDb(){
+    return new Promise((res,rej)=>{
+      const r = indexedDB.open(DB_NAME,1);
+      r.onupgradeneeded = e => { e.target.result.createObjectStore(STORE, { keyPath:'id' }); };
+      r.onsuccess = e => { db = e.target.result; res(db); };
+      r.onerror = e => rej(e);
+    });
+  }
+  function putRecord(obj){
+    return new Promise((res,rej)=>{
+      const tx = db.transaction(STORE,'readwrite');
+      const s = tx.objectStore(STORE);
+      s.put(obj);
+      tx.oncomplete = ()=>res(true);
+      tx.onerror = e=>rej(e);
+    });
+  }
+  function getAll(){
+    return new Promise((res,rej)=>{
+      const tx = db.transaction(STORE,'readonly');
+      const s = tx.objectStore(STORE);
+      const req = s.getAll();
+      req.onsuccess = ()=>res(req.result);
+      req.onerror = e=>rej(e);
+    });
+  }
+  function clearAllRecords(){
+    return new Promise((res,rej)=>{
+      const tx = db.transaction(STORE,'readwrite');
+      const s = tx.objectStore(STORE);
+      const req = s.clear();
+      req.onsuccess = ()=>res(true);
+      req.onerror = e=>rej(e);
+    });
+  }
+
+  // --- DOM ---
+  const form = document.getElementById('form');
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const photoPreview = document.getElementById('photoPreview');
+  const openCamera = document.getElementById('openCamera');
+  const takePhoto = document.getElementById('takePhoto');
+  const clearPhoto = document.getElementById('clearPhoto');
+  const historyEl = document.getElementById('history');
+  const syncBtn = document.getElementById('syncBtn');
+  const exportCsv = document.getElementById('exportCsv');
+  const clearAllBtn = document.getElementById('clearAll');
+
+  let currentPhotoData = null;
+  let stream = null;
+
+  async function init(){
+    await openDb();
+    await refreshHistory();
+    // register service worker if available
+    if('serviceWorker' in navigator){
+      try{ await navigator.serviceWorker.register('sw.js'); console.log('SW registrado'); }catch(e){console.warn('SW falhou',e)}
+    }
+  }
+
+  function showPhoto(dataUrl){
+    currentPhotoData = dataUrl;
+    photoPreview.innerHTML = '';
+    const img = document.createElement('img');
+    img.src = dataUrl; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover';
+    photoPreview.appendChild(img);
+  }
+
+  openCamera.addEventListener('click', async ()=>{
+    if(!stream){
+      try{
+        stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
+        video.srcObject = stream; video.style.display='block';
+      }catch(e){alert('Não foi possível abrir a câmera: '+e.message)}
+    } else {
+      // stop camera
+      stream.getTracks().forEach(t=>t.stop()); stream=null; video.style.display='none';
+    }
+  });
+
+  takePhoto.addEventListener('click', ()=>{
+    if(!stream){ alert('Abra a câmera primeiro'); return; }
+    const w = video.videoWidth; const h = video.videoHeight;
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video,0,0,w,h);
+    const data = canvas.toDataURL('image/jpeg',0.8);
+    showPhoto(data);
+  });
+
+  clearPhoto.addEventListener('click', ()=>{ currentPhotoData=null; photoPreview.innerHTML='Nenhuma foto'; });
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const record = {
+      id: 'r_'+Date.now(),
+      truck: document.getElementById('truck').value.trim(),
+      driver: document.getElementById('driver').value.trim(),
+      destination: document.getElementById('destination').value.trim(),
+      quantity: Number(document.getElementById('quantity').value),
+      notes: document.getElementById('notes').value.trim(),
+      photo: currentPhotoData, // dataURL
+      createdAt: new Date().toISOString(),
+      synced: false
+    };
+    await putRecord(record);
+    // reset form (keep camera stream)
+    form.reset(); currentPhotoData=null; photoPreview.innerHTML='Nenhuma foto';
+    await refreshHistory();
+    alert('Registro salvo offline!');
+  });
+
+  async function refreshHistory(){
+    const items = await getAll();
+    historyEl.innerHTML='';
+    items.sort((a,b)=> b.createdAt.localeCompare(a.createdAt));
+    for(const it of items){
+      const div = document.createElement('div'); div.className='history-item';
+      div.innerHTML = `
+        <div style="display:flex;gap:8px">
+          <div style="width:110px;height:80px;overflow:hidden;border-radius:8px;background:#eee">${it.photo?'<img src="'+it.photo+'" style="width:100%;height:100%;object-fit:cover">':'<small>sem foto</small>'}</div>
+          <div style="flex:1">
+            <div><strong>Placa:</strong> ${it.truck} <strong style="margin-left:8px">Motorista:</strong> ${it.driver}</div>
+            <div><strong>Destino:</strong> ${it.destination} <strong style="margin-left:8px">Qtd:</strong> ${it.quantity}</div>
+            <div><small>${it.notes||''}</small></div>
+            <div style="margin-top:6px"><small>${new Date(it.createdAt).toLocaleString()}</small> ${it.synced?'<span style="color:green;margin-left:8px">(sincronizado)</span>':'<span style="color:orange;margin-left:8px">(offline)</span>'}</div>
+          </div>
+        </div>
+      `;
+      historyEl.appendChild(div);
+    }
+  }
+
+  syncBtn.addEventListener('click', async ()=>{
+    if(!navigator.onLine){ alert('Sem conexão — conecte-se e tente novamente.'); return; }
+    // exemplo: enviar registros não sincronizados para endpoint (deve ser implementado separadamente)
+    const items = (await getAll()).filter(x=>!x.synced);
+    if(items.length===0){ alert('Não há registros a sincronizar.'); return; }
+    try{
+      // exemplo de endpoint: replace abaixo por seu endpoint real / Google Apps Script
+      const endpoint = localStorage.getItem('sync_endpoint') || '';
+      if(!endpoint){ if(!confirm('Nenhum endpoint de sincronização configurado. Deseja apenas marcar todos como sincronizados localmente?')) return; }
+      for(const it of items){
+        if(endpoint){
+          // envie via POST (o endpoint deve aceitar JSON)
+          const resp = await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(it)});
+          if(!resp.ok) throw new Error('Falha ao enviar');
+          it.synced = true; await putRecord(it);
+        } else {
+          it.synced = true; await putRecord(it);
+        }
+      }
+      await refreshHistory(); alert('Sincronização concluída.');
+    }catch(e){ alert('Erro ao sincronizar: '+e.message); }
+  });
+
+  exportCsv.addEventListener('click', async ()=>{
+    const items = await getAll();
+    if(items.length===0){ alert('Sem registros'); return; }
+    const rows = [['id','truck','driver','destination','quantity','notes','createdAt','synced','photoBase64']];
+    for(const it of items){ rows.push([it.id,it.truck,it.driver,it.destination,it.quantity,it.notes,it.createdAt,it.synced,it.photo?it.photo.slice(0,100):'']); }
+    const csv = rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+    const blob = new Blob([csv],{type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='namariel_records.csv'; a.click(); URL.revokeObjectURL(url);
+  });
+
+  clearAllBtn.addEventListener('click', async ()=>{
+    if(!confirm('Apagar todos os registros locais?')) return;
+    await clearAllRecords(); await refreshHistory(); alert('Registros apagados');
+  });
+
+  // helper: prompt to set sync endpoint (Google Apps Script URL)
+  window.addEventListener('keydown', (e)=>{ if(e.ctrlKey && e.key==='s'){ e.preventDefault(); const val=prompt('Endpoint de sincronização (cole a URL do seu Google Apps Script / webhook)'); if(val) localStorage.setItem('sync_endpoint',val); } });
+
+  init();
+  </script></body>
+</html>
