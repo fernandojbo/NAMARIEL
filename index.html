@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NAMARIEL - Contagem Inteligente</title>
 
-  <!-- Estilo básico -->
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -60,7 +59,6 @@
   <h1>NAMARIEL 📦</h1>
   <p>Contagem inteligente de volumes</p>
 
-  <!-- Câmera e Preview -->
   <video id="video" autoplay playsinline></video>
   <canvas id="canvas" style="display:none;"></canvas>
   <img id="photoPreview" style="display:none;" />
@@ -101,11 +99,16 @@
 
     async function startCam() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: "environment" } } // usa câmera traseira
+        });
         video.srcObject = stream;
         takePhoto.disabled = false;
       } catch (err) {
-        alert('Erro ao acessar câmera: ' + err.message);
+        alert('Erro ao acessar câmera traseira. Tentando a frontal...');
+        const fallback = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = fallback;
+        takePhoto.disabled = false;
       }
     }
 
@@ -163,7 +166,8 @@
       const threshold = Number(thresholdInput.value) / 100;
 
       const predictions = await model.detect(img);
-      const good = predictions.filter(p => p.score >= threshold);
+      // Aumenta sensibilidade e ignora objetos minúsculos
+      const good = predictions.filter(p => p.score >= threshold && (p.bbox[2] * p.bbox[3]) > 3000);
       drawBoxes(good);
       quantity.value = good.length;
     }
