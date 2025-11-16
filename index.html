@@ -1,192 +1,278 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NAMARIEL - Contagem Inteligente</title>
+/* Project: CentralFrete-style Landing (React + Tailwind) File: Site-CentralFrete-React-Tailwind.jsx
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f2f2f2;
-      margin: 0;
-      padding: 15px;
-      text-align: center;
-    }
-    h1 {
-      color: #2b6cb0;
-    }
-    button {
-      padding: 10px 20px;
-      margin: 8px;
-      border: none;
-      border-radius: 6px;
-      background-color: #2b6cb0;
-      color: white;
-      font-size: 16px;
-    }
-    button:disabled {
-      background-color: #aaa;
-    }
-    video, img, canvas {
-      width: 100%;
-      max-width: 350px;
-      border-radius: 10px;
-      margin-top: 10px;
-    }
-    #overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-    .info {
-      margin-top: 10px;
-      text-align: left;
-      max-width: 350px;
-      display: inline-block;
-      background: #fff;
-      padding: 10px;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-  </style>
+INSTRUÇÕES DE USO
 
-  <!-- TensorFlow + modelo COCO-SSD -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
-</head>
-<body>
-  <h1>NAMARIEL 📦</h1>
-  <p>Contagem inteligente de volumes</p>
+1. Crie um novo projeto React (Vite recomendado): npm create vite@latest central-frete -- --template react cd central-frete
 
-  <video id="video" autoplay playsinline></video>
-  <canvas id="canvas" style="display:none;"></canvas>
-  <img id="photoPreview" style="display:none;" />
-  <canvas id="overlay"></canvas>
 
-  <div>
-    <button id="startCamera">📷 Abrir Câmera</button>
-    <button id="takePhoto" disabled>📸 Tirar Foto</button>
-    <button id="deletePhoto" disabled>🗑️ Apagar Foto</button>
-    <button id="detectBtn" disabled>🔍 Detectar Volumes</button>
+2. Instale dependências: npm install npm install -D tailwindcss postcss autoprefixer npx tailwindcss init -p npm install framer-motion
+
+
+3. Configure Tailwind (tailwind.config.js): module.exports = { content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"], theme: { extend: {} }, plugins: [], }
+
+
+4. No src/index.css adicione: @tailwind base; @tailwind components; @tailwind utilities;
+
+
+5. Substitua src/App.jsx pelo conteúdo deste arquivo (copiar o componente default export abaixo).
+
+
+6. Rode: npm run dev
+
+
+
+OBS: O componente já inclui lógica de calculadora (simulada), layout responsivo, cabeçalho fixo, navegação suave e animações leves via framer-motion. */
+
+import React, { useState, useEffect } from 'react'; import { motion } from 'framer-motion';
+
+export default function CentralFreteClone() { // form state const [originCep, setOriginCep] = useState(''); const [destCep, setDestCep] = useState(''); const [weight, setWeight] = useState('1'); const [length, setLength] = useState('30'); const [width, setWidth] = useState('30'); const [height, setHeight] = useState('30'); const [cargoType, setCargoType] = useState('Normal'); const [results, setResults] = useState([]); const [loading, setLoading] = useState(false); const [contact, setContact] = useState({ name: '', email: '', message: '' });
+
+useEffect(() => { // enable smooth scroll on first render document.documentElement.classList.add('scroll-smooth'); }, []);
+
+function validateCep(cep) { // simple validation: 5 or 8 digits (accept formatted too) const digits = cep.replace(/\D/g, ''); return digits.length >= 5; }
+
+function calculateFrete(e) { e && e.preventDefault(); setResults([]); if (!validateCep(originCep) || !validateCep(destCep)) { alert('Informe CEPs válidos (pelo menos 5 dígitos).'); return; } setLoading(true);
+
+// simulated transportadoras with different pricing models
+const transporters = [
+  { id: 'tx1', name: 'RápidoLog', base: 25, kmRate: 0.9, speedDays: 2 },
+  { id: 'tx2', name: 'SeguriFrete', base: 30, kmRate: 0.7, speedDays: 3 },
+  { id: 'tx3', name: 'EconômicaTrans', base: 18, kmRate: 0.5, speedDays: 5 },
+  { id: 'tx4', name: 'PremiumCargo', base: 40, kmRate: 1.2, speedDays: 1 },
+];
+
+// crude distance estimate from CEP digits to make results deterministic
+const originDigits = parseInt(originCep.replace(/\D/g, '').slice(0, 5) || '10000', 10);
+const destDigits = parseInt(destCep.replace(/\D/g, '').slice(0, 5) || '50000', 10);
+const pseudoKm = Math.abs(originDigits - destDigits) / 10 + 50; // minimal 50km
+
+// volume/weight factor
+const volume = (Number(length) * Number(width) * Number(height)) / 1000000; // m3
+const densityFactor = Math.max(1, Number(weight) / (volume * 200)); // arbitrary
+
+// cargo type multiplier
+const cargoMultiplier = cargoType === 'Frágil' ? 1.2 : cargoType === 'Perigosa' ? 1.5 : 1.0;
+
+setTimeout(() => {
+  const computed = transporters.map(t => {
+    const price = (t.base + pseudoKm * t.kmRate) * densityFactor * cargoMultiplier;
+    return {
+      id: t.id,
+      name: t.name,
+      price: Number(price.toFixed(2)),
+      prazo: t.speedDays,
+      deliveryWindow: `${t.speedDays} a ${t.speedDays + 2} dias`,
+    };
+  }).sort((a, b) => a.price - b.price);
+
+  setResults(computed);
+  setLoading(false);
+}, 700); // small simulated delay for UX
+
+}
+
+function solicitarFrete(item) { const message = encodeURIComponent( Olá, gostaria de solicitar um orçamento com ${item.name}.\nOrigem: ${originCep}\nDestino: ${destCep}\nPeso: ${weight} kg\nDimensões: ${length}x${width}x${height} cm\nTipo: ${cargoType}\nPreço estimado: R$ ${item.price} ); // opens WhatsApp (works on mobile/desktop with WhatsApp Web) window.open(https://wa.me/559999999999?text=${message}, '_blank'); }
+
+function handleContactSubmit(e) { e.preventDefault(); alert('Mensagem enviada — (simulação). Em produção integraria um backend ou e-mail.'); setContact({ name: '', email: '', message: '' }); }
+
+return ( <div className="min-h-screen flex flex-col bg-white text-slate-800"> {/* Header */} <header className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-sm border-b"> <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8"> <nav className="flex items-center justify-between h-16"> <a href="/#home" className="flex items-center gap-3"> <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold">CF</div> <div className="hidden sm:block"> <div className="text-lg font-semibold">CentralFrete</div> <div className="text-xs text-slate-500">Logística & Cálculo de Fretes</div> </div> </a>
+
+<div className="hidden md:flex items-center gap-6">
+          <a href="#calc" className="text-sm hover:text-blue-600">Calcule seu frete</a>
+          <a href="#about" className="text-sm hover:text-blue-600">Sobre</a>
+          <a href="#contact" className="text-sm hover:text-blue-600">Contato</a>
+          <a href="https://wa.me/559999999999" target="_blank" rel="noreferrer" className="ml-3 inline-flex items-center gap-2 px-3 py-2 rounded-md bg-blue-600 text-white text-sm">WhatsApp</a>
+        </div>
+
+        <div className="md:hidden">
+          <MobileMenu />
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main className="pt-20 w-full">
+    {/* Hero */}
+    <section id="home" className="bg-gradient-to-b from-blue-50 to-white">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+          <motion.div initial={{ x: -30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ duration: 0.6 }}>
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900">Calcule seu frete em segundos</h1>
+            <p className="mt-4 text-slate-600">Compare preços e prazos de várias transportadoras. Solução pensada para empresas de logística, e-commerce e operações que precisam otimizar custos.</p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <a href="#calc" className="inline-block px-5 py-3 rounded-md bg-blue-600 text-white font-medium shadow">Calcule seu frete</a>
+              <a href="#about" className="inline-block px-5 py-3 rounded-md border border-blue-100 text-blue-700">Saiba mais</a>
+            </div>
+
+            <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {benefitIcons.map((b) => (
+                <div key={b.title} className="flex items-start gap-3">
+                  <div className="w-10 h-10 flex items-center justify-center rounded-md bg-white shadow-sm border">
+                    <span aria-hidden>{b.icon}</span>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold">{b.title}</div>
+                    <div className="text-xs text-slate-500">{b.subtitle}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+          </motion.div>
+
+          <motion.div initial={{ scale: 0.98, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.6 }}>
+            <div className="bg-white rounded-xl shadow p-6">
+              <h3 className="text-lg font-semibold">Calculadora de Fretes</h3>
+              <p className="text-sm text-slate-500">Preencha origem e destino para ver cotações instantâneas.</p>
+
+              <form id="calc" className="mt-4 space-y-3" onSubmit={calculateFrete}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input value={originCep} onChange={e => setOriginCep(e.target.value)} placeholder="CEP de origem" className="p-3 border rounded" />
+                  <input value={destCep} onChange={e => setDestCep(e.target.value)} placeholder="CEP de destino" className="p-3 border rounded" />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <input value={weight} onChange={e => setWeight(e.target.value)} placeholder="Peso (kg)" type="number" min="0.1" step="0.1" className="p-3 border rounded" />
+                  <input value={length} onChange={e => setLength(e.target.value)} placeholder="Comprimento (cm)" type="number" className="p-3 border rounded" />
+                  <input value={width} onChange={e => setWidth(e.target.value)} placeholder="Largura (cm)" type="number" className="p-3 border rounded" />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input value={height} onChange={e => setHeight(e.target.value)} placeholder="Altura (cm)" type="number" className="p-3 border rounded" />
+                  <select value={cargoType} onChange={e => setCargoType(e.target.value)} className="p-3 border rounded">
+                    <option>Normal</option>
+                    <option>Frágil</option>
+                    <option>Perigosa</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button type="submit" className="px-4 py-2 rounded-md bg-blue-600 text-white font-medium">{loading ? 'Calculando...' : 'Ver cotações'}</button>
+                  <button type="button" onClick={() => { setOriginCep(''); setDestCep(''); setWeight('1'); setLength('30'); setWidth('30'); setHeight('30'); setCargoType('Normal'); setResults([]); }} className="px-4 py-2 rounded-md border">Limpar</button>
+                </div>
+              </form>
+
+              {/* Results */}
+              <div className="mt-4">
+                {results.length === 0 && !loading && <div className="text-sm text-slate-500">Nenhuma cotação. Faça um cálculo.</div>}
+
+                <div className="mt-2 space-y-3">
+                  {results.map(r => (
+                    <motion.div key={r.id} initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }} className="p-3 border rounded flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold">{r.name}</div>
+                        <div className="text-xs text-slate-500">Prazo: {r.deliveryWindow}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold">R$ {r.price.toLocaleString('pt-BR')}</div>
+                        <button onClick={() => solicitarFrete(r)} className="mt-2 px-3 py-1 rounded-md bg-blue-600 text-white text-sm">Solicitar Frete</button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    </section>
+
+    {/* About */}
+    <section id="about" className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+        <h2 className="text-2xl font-bold">Sobre a CentralFrete</h2>
+        <p className="mt-4 text-slate-600">Somos uma plataforma independente que ajuda empresas a comparar fretes em segundos. Nossa missão é transparência, economia e agilidade. Trabalhamos com transportadoras parceiras e oferecemos suporte em todo o Brasil.</p>
+
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <CredCard title="Experiência" text="+10 anos no mercado de logística e operação." />
+          <CredCard title="Segurança" text="Seguro de carga e parceiros certificados." />
+          <CredCard title="Cobertura" text="Atuamos em todos os estados brasileiros." />
+        </div>
+      </motion.div>
+    </section>
+
+    {/* Contact */}
+    <section id="contact" className="bg-blue-50">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6 }}>
+          <h2 className="text-2xl font-bold">Contato</h2>
+          <p className="mt-2 text-slate-600">Tem dúvidas? Envie uma mensagem ou fale conosco pelo WhatsApp.</p>
+
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <form onSubmit={handleContactSubmit} className="space-y-3 bg-white p-6 rounded shadow">
+              <input required value={contact.name} onChange={e => setContact(s => ({ ...s, name: e.target.value }))} placeholder="Seu nome" className="p-3 border rounded w-full" />
+              <input required value={contact.email} onChange={e => setContact(s => ({ ...s, email: e.target.value }))} placeholder="Seu e-mail" className="p-3 border rounded w-full" />
+              <textarea required value={contact.message} onChange={e => setContact(s => ({ ...s, message: e.target.value }))} placeholder="Sua mensagem" className="p-3 border rounded w-full h-32" />
+              <div className="flex gap-3">
+                <button type="submit" className="px-4 py-2 rounded bg-blue-600 text-white">Enviar</button>
+                <a href="https://wa.me/559999999999?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20voc%C3%AAs" target="_blank" rel="noreferrer" className="px-4 py-2 rounded border">WhatsApp</a>
+              </div>
+            </form>
+
+            <div className="space-y-4">
+              <div className="bg-white p-6 rounded shadow">
+                <h3 className="font-semibold">Informações</h3>
+                <p className="text-sm text-slate-600 mt-2">Telefone: (99) 99999-9999</p>
+                <p className="text-sm text-slate-600">Email: contato@centralfrete.ex</p>
+                <p className="text-sm text-slate-600">Atendimento: Segunda a Sexta, 8h às 18h</p>
+              </div>
+
+              <div className="bg-white p-6 rounded shadow">
+                <h3 className="font-semibold">Localização</h3>
+                <p className="text-sm text-slate-600 mt-2">Matriz: Rua Exemplo, 123 - São Paulo, SP</p>
+              </div>
+            </div>
+
+          </div>
+        </motion.div>
+      </div>
+    </section>
+
+  </main>
+
+  <Footer />
+</div>
+
+); }
+
+/* ---------- Small helper components and data ---------- */
+
+const benefitIcons = [ { title: 'Rápido', subtitle: 'Resultados em segundos', icon: svgBolt }, { title: 'Econômico', subtitle: 'Compare preços', icon: svgTag }, { title: 'Seguro', subtitle: 'Parceiros certificados', icon: svgShield }, { title: 'Suporte', subtitle: 'Atendimento dedicado', icon: svgChat }, ];
+
+function CredCard({ title, text }) { return ( <div className="p-4 bg-white rounded shadow-sm"> <div className="text-lg font-semibold">{title}</div> <div className="text-sm text-slate-600 mt-2">{text}</div> </div> ); }
+
+function Footer() { return ( <footer className="mt-12 bg-blue-900 text-white"> <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row items-center justify-between gap-4"> <div> <div className="font-bold">CentralFrete</div> <div className="text-sm text-blue-200">© {new Date().getFullYear()} CentralFrete. Todos os direitos reservados.</div> </div>
+
+<div className="flex items-center gap-4">
+      <a href="#home" className="text-sm hover:text-blue-200">Home</a>
+      <a href="#about" className="text-sm hover:text-blue-200">Sobre</a>
+      <a href="#contact" className="text-sm hover:text-blue-200">Contato</a>
+      <a href="https://wa.me/559999999999" target="_blank" rel="noreferrer" className="px-3 py-2 rounded bg-white text-blue-900">WhatsApp</a>
+    </div>
   </div>
+</footer>
 
-  <div class="info">
-    <label>📦 Quantidade detectada:</label>
-    <input type="number" id="quantity" readonly style="width:70px; text-align:center;" />
-    <br><br>
-    <label>Limiar de confiança: <span id="thVal">50%</span></label>
-    <input id="threshold" type="range" min="0" max="100" value="50">
-  </div>
+); }
 
-  <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const photoPreview = document.getElementById('photoPreview');
-    const overlay = document.getElementById('overlay');
-    const startCamera = document.getElementById('startCamera');
-    const takePhoto = document.getElementById('takePhoto');
-    const deletePhoto = document.getElementById('deletePhoto');
-    const detectBtn = document.getElementById('detectBtn');
-    const thresholdInput = document.getElementById('threshold');
-    const thVal = document.getElementById('thVal');
-    const quantity = document.getElementById('quantity');
+function MobileMenu() { const [open, setOpen] = useState(false); return ( <div className="relative"> <button onClick={() => setOpen(s => !s)} className="p-2 rounded-md border"> <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg> </button>
 
-    let model = null;
-    let stream = null;
+{open && (
+    <div className="absolute right-0 mt-2 w-48 bg-white rounded shadow p-3">
+      <a href="#calc" onClick={() => setOpen(false)} className="block py-2">Calcule seu frete</a>
+      <a href="#about" onClick={() => setOpen(false)} className="block py-2">Sobre</a>
+      <a href="#contact" onClick={() => setOpen(false)} className="block py-2">Contato</a>
+    </div>
+  )}
+</div>
 
-    thresholdInput.addEventListener('input', () => {
-      thVal.textContent = thresholdInput.value + '%';
-    });
+); }
 
-    async function startCam() {
-      try {
-        // 🔧 força o uso da câmera traseira
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-          audio: false
-        });
-        video.srcObject = stream;
-        takePhoto.disabled = false;
-        deletePhoto.disabled = true;
-      } catch (err) {
-        alert('Erro ao acessar câmera traseira. Tente permitir o uso da câmera nas configurações do navegador.');
-        console.error(err);
-      }
-    }
+/* ---------- Inline SVG icons ---------- */ function svgBolt() { return ( <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13 2L3 14h7l-1 8L21 10h-7l-1-8z" fill="#0ea5e9"/></svg> ); }
 
-    startCamera.addEventListener('click', startCam);
+function svgTag() { return ( <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20.59 13.41L11.17 4 4 11.17l9.41 9.41L20.59 13.41zM7.5 10a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" fill="#0ea5e9"/></svg> ); }
 
-    takePhoto.addEventListener('click', () => {
-      if (!video.srcObject) return alert("Abra a câmera primeiro!");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
-      const dataURL = canvas.toDataURL('image/png');
-      photoPreview.src = dataURL;
-      photoPreview.style.display = 'block';
-      overlay.width = video.videoWidth;
-      overlay.height = video.videoHeight;
-      detectBtn.disabled = false;
-      deletePhoto.disabled = false;
-      video.style.display = 'none';
-    });
+function svgShield() { return ( <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l7 4v6c0 5-3.8 9.7-7 10-3.2-.3-7-5-7-10V6l7-4z" fill="#0ea5e9"/></svg> ); }
 
-    deletePhoto.addEventListener('click', () => {
-      photoPreview.style.display = 'none';
-      overlay.getContext('2d').clearRect(0, 0, overlay.width, overlay.height);
-      video.style.display = 'block';
-      detectBtn.disabled = true;
-      deletePhoto.disabled = true;
-    });
-
-    async function loadModel() {
-      detectBtn.disabled = true;
-      detectBtn.textContent = '⏳ Carregando modelo...';
-      model = await cocoSsd.load();
-      detectBtn.textContent = '🔍 Detectar Volumes';
-      detectBtn.disabled = false;
-    }
-
-    function drawBoxes(predictions) {
-      const ctxOverlay = overlay.getContext('2d');
-      ctxOverlay.clearRect(0, 0, overlay.width, overlay.height);
-      ctxOverlay.lineWidth = 2;
-      ctxOverlay.font = '14px sans-serif';
-      predictions.forEach(p => {
-        ctxOverlay.strokeStyle = 'lime';
-        ctxOverlay.fillStyle = 'rgba(0,255,0,0.3)';
-        const [x, y, w, h] = p.bbox;
-        ctxOverlay.strokeRect(x, y, w, h);
-        ctxOverlay.fillRect(x, y, w, h);
-        ctxOverlay.fillStyle = 'black';
-        ctxOverlay.fillText(`${p.class} ${(p.score*100).toFixed(0)}%`, x+5, y+15);
-      });
-    }
-
-    async function runDetection() {
-      if (!photoPreview.src) {
-        alert('Tire uma foto primeiro!');
-        return;
-      }
-      const threshold = Number(thresholdInput.value) / 100;
-      const predictions = await model.detect(photoPreview);
-      const filtered = predictions.filter(p => p.score >= threshold && (p.bbox[2]*p.bbox[3]) > 3000);
-      drawBoxes(filtered);
-      quantity.value = filtered.length;
-    }
-
-    detectBtn.addEventListener('click', async () => {
-      if (!model) await loadModel();
-      detectBtn.textContent = 'Detectando...';
-      detectBtn.disabled = true;
-      await runDetection();
-      detectBtn.textContent = '🔍 Detectar Volumes';
-      detectBtn.disabled = false;
-    });
-
-    loadModel();
-  </script>
-</body>
-</html>
+function svgChat() { return ( <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 6h-18v12h4v4l4-4h10z" fill="#0ea5e9"/></svg> ); }
