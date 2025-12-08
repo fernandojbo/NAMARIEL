@@ -1,278 +1,87 @@
-/* Project: CentralFrete-style Landing (React + Tailwind) File: Site-CentralFrete-React-Tailwind.jsx
-
-INSTRUÇÕES DE USO
-
-1. Crie um novo projeto React (Vite recomendado): npm create vite@latest central-frete -- --template react cd central-frete
-
-
-2. Instale dependências: npm install npm install -D tailwindcss postcss autoprefixer npx tailwindcss init -p npm install framer-motion
-
-
-3. Configure Tailwind (tailwind.config.js): module.exports = { content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"], theme: { extend: {} }, plugins: [], }
-
-
-4. No src/index.css adicione: @tailwind base; @tailwind components; @tailwind utilities;
-
-
-5. Substitua src/App.jsx pelo conteúdo deste arquivo (copiar o componente default export abaixo).
-
-
-6. Rode: npm run dev
-
-
-
-OBS: O componente já inclui lógica de calculadora (simulada), layout responsivo, cabeçalho fixo, navegação suave e animações leves via framer-motion. */
-
-import React, { useState, useEffect } from 'react'; import { motion } from 'framer-motion';
-
-export default function CentralFreteClone() { // form state const [originCep, setOriginCep] = useState(''); const [destCep, setDestCep] = useState(''); const [weight, setWeight] = useState('1'); const [length, setLength] = useState('30'); const [width, setWidth] = useState('30'); const [height, setHeight] = useState('30'); const [cargoType, setCargoType] = useState('Normal'); const [results, setResults] = useState([]); const [loading, setLoading] = useState(false); const [contact, setContact] = useState({ name: '', email: '', message: '' });
-
-useEffect(() => { // enable smooth scroll on first render document.documentElement.classList.add('scroll-smooth'); }, []);
-
-function validateCep(cep) { // simple validation: 5 or 8 digits (accept formatted too) const digits = cep.replace(/\D/g, ''); return digits.length >= 5; }
-
-function calculateFrete(e) { e && e.preventDefault(); setResults([]); if (!validateCep(originCep) || !validateCep(destCep)) { alert('Informe CEPs válidos (pelo menos 5 dígitos).'); return; } setLoading(true);
-
-// simulated transportadoras with different pricing models
-const transporters = [
-  { id: 'tx1', name: 'RápidoLog', base: 25, kmRate: 0.9, speedDays: 2 },
-  { id: 'tx2', name: 'SeguriFrete', base: 30, kmRate: 0.7, speedDays: 3 },
-  { id: 'tx3', name: 'EconômicaTrans', base: 18, kmRate: 0.5, speedDays: 5 },
-  { id: 'tx4', name: 'PremiumCargo', base: 40, kmRate: 1.2, speedDays: 1 },
-];
-
-// crude distance estimate from CEP digits to make results deterministic
-const originDigits = parseInt(originCep.replace(/\D/g, '').slice(0, 5) || '10000', 10);
-const destDigits = parseInt(destCep.replace(/\D/g, '').slice(0, 5) || '50000', 10);
-const pseudoKm = Math.abs(originDigits - destDigits) / 10 + 50; // minimal 50km
-
-// volume/weight factor
-const volume = (Number(length) * Number(width) * Number(height)) / 1000000; // m3
-const densityFactor = Math.max(1, Number(weight) / (volume * 200)); // arbitrary
-
-// cargo type multiplier
-const cargoMultiplier = cargoType === 'Frágil' ? 1.2 : cargoType === 'Perigosa' ? 1.5 : 1.0;
-
-setTimeout(() => {
-  const computed = transporters.map(t => {
-    const price = (t.base + pseudoKm * t.kmRate) * densityFactor * cargoMultiplier;
-    return {
-      id: t.id,
-      name: t.name,
-      price: Number(price.toFixed(2)),
-      prazo: t.speedDays,
-      deliveryWindow: `${t.speedDays} a ${t.speedDays + 2} dias`,
-    };
-  }).sort((a, b) => a.price - b.price);
-
-  setResults(computed);
-  setLoading(false);
-}, 700); // small simulated delay for UX
-
+<!-- Versão Profissional do Painel CT-e para GitHub Pages -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel CT-e • Versão Profissional</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+<style>
+body {margin:0;font-family:Inter, sans-serif;background:#f0f2f5;color:#222;}
+header {background:#004d40;color:white;padding:20px 30px;font-size:22px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.15);}
+.container {padding:25px;max-width:1600px;margin:auto;}
+.card {background:white;border-radius:14px;padding:20px;box-shadow:0 4px 10px rgba(0,0,0,0.08);} 
+.grid {display:grid;gap:20px;} 
+.grid-3 {grid-template-columns:repeat(auto-fit,minmax(250px,1fr));}
+label {font-size:14px;font-weight:600;}
+input[type=file] {margin-top:10px;}
+#charts {margin-top:30px;}
+.table-wrap {overflow-x:auto;margin-top:25px;}
+table {width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;background:white;box-shadow:0 4px 10px rgba(0,0,0,0.08);} 
+th, td {padding:10px 12px;border-bottom:1px solid #ddd;font-size:14px;} 
+th {background:#00695c;color:white;text-align:left;font-weight:600;position:sticky;top:0;z-index:1;} 
+.status {padding:5px 10px;border-radius:20px;font-size:12px;font-weight:700;} 
+.status-Atrasado {background:#ffebee;color:#c62828;} 
+.status-Em-Risco {background:#fff8e1;color:#f9a825;} 
+.status-Normal {background:#e8f5e9;color:#2e7d32;} 
+.sidebar {background:white;padding:20px;border-radius:14px;box-shadow:0 4px 10px rgba(0,0,0,0.1);} 
+button {cursor:pointer;border:0;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;} 
+.btn-primary {background:#00695c;color:white;} 
+.btn-primary:hover {background:#005249;} 
+.filter-btn {background:#e0f2f1;color:#004d40;margin:4px;} 
+.filter-btn.active {background:#004d40;color:white;} 
+</style>
+</head>
+<body>
+<header>Painel Profissional • Análise de CT-e (24h)</header>
+<div class="container grid" style="grid-template-columns:260px 1fr;align-items:flex-start;">
+<div class="sidebar">
+<h3>📂 Importar CSV</h3>
+<input type="file" id="csv-file" accept=".csv"><br><br>
+<p id="file-status" style="font-size:14px;color:#333;"></p>
+<hr>
+<h3>🗂️ Filtros</h3>
+<div id="filter-area"></div>
+</div>
+<div>
+<div class="grid grid-3" id="kpi-area"></div>
+<div id="charts" class="grid" style="grid-template-columns:1fr 1fr;">
+<div class="card"><canvas id="chartAtrasos"></canvas></div>
+<div class="card"><canvas id="chartCentral"></canvas></div>
+</div>
+<div class="table-wrap">
+<table id="ct-table">
+<thead>
+<tr>
+<th>Status</th><th>CT-e</th><th>NF</th><th>Destino</th><th>Centralizadora</th><th>Pagador</th><th>Vol.</th><th>Emissão</th><th>Últ Ocorrência</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+</div>
+<script>
+let allData=[]; let currentFilter="Todos";
+const CENTRALIZERS_MAP={ 'BVB':'BEL','HCT':'BEL','MAO':'BEL','MFL':'BEL','OCA':'BEL','THT':'BEL','TNE':'BEL','WST':'BEL','FRC':'CBA','ALF':'CBI','COL':'CBI','CPV':'CBI','GUA':'CBI','HRA':'CBI','HRT':'CBI','JUI':'CBI','LRV':'CBI','NMT':'CBI','PRI':'CBI','PRL':'CBI','RCE':'CBI','RDM':'CBI','RED':'CBI','STS':'CBI','TAG':'CBI','TIM':'CBI','TLT':'CBI','TNN':'CBI','APT':'CGR','BLU':'CPQ','JOI':'CPQ','LDN':'CPQ','SPO':'CPQ','STO':'CPQ','ANP':'GYN','APS':'GYN','BPG':'GYN','CHS':'GYN','CLA':'GYN','CRA':'GYN','DBS':'GYN','PCA':'GYN','PCK':'GYN','PCX':'GYN','VIP':'GYN','ALT':'MAB','NRE':'MAB','PAC':'MAB','PEB':'MAB','SFX':'MAB','TAL':'MAB','TUC':'MAB','XIG':'MAB','BIV':'NBL','CAP':'NBL','CMT':'NBL','CPO':'NBL','MAC':'NBL','MAU':'NBL','MCP':'NBL','MDR':'NBL','PRG':'NBL','SIQ':'NBL','SRT':'NBL','WFT':'NBL','AAC':'ROO','AL2':'TRU','CEC':'TRU','CW3':'TRU','EGO':'TRU','INV':'TRU','LCE':'TRU','LUZ':'TRU','NWF':'TRU','RAD':'TRU','RIT':'TRU','SPR':'TRU','TNG':'TRU','USE':'TRU','VAL':'TRU','PAT':'UDI'};
+function parse(d){if(!d)return null;d=d.split(' ')[0];let m=d.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m){let js=new Date(`${m[2]}/${m[1]}/${m[3]}`);if(!isNaN(js))return js.setHours(0,0,0,0);}return null;}
+document.getElementById('csv-file').addEventListener('change',e=>{Papa.parse(e.target.files[0],{header:true,complete:r=>process(r.data)});});
+function process(d){const hoje=new Date();hoje.setHours(0,0,0,0);const h=hoje.getTime();allData=d.map(r=>{let item={ct:r['CTRC/GAI/PAL'],nf:r['NFISCAL'],dest:r['DESTINO'],pag:r['PAGADOR'],vol:r['QVOL'],ult:r['DATA ULT OCOR'],emi:r['DATA EMISSÃO']};item.central=CENTRALIZERS_MAP[item.dest]||item.dest;item.ultTS=parse(item.ult);let diff=item.ultTS?Math.floor((h-item.ultTS)/86400000):-1;item.status=diff>=2?'Atrasado':diff===1?'Em Risco':'Normal';return item;});render();}
+function render(){renderKPI();renderFilters();renderCharts();renderTable();}
+function renderKPI(){let a=allData.filter(x=>x.status==='Atrasado').length,r=allData.filter(x=>x.status==='Em Risco').length,n=allData.filter(x=>x.status==='Normal').length;document.getElementById('kpi-area').innerHTML=`
+<div class='card'><h3>Total</h3><p style='font-size:32px;font-weight:700'>${allData.length}</p></div>
+<div class='card'><h3>Atrasados</h3><p class='status-Atrasado' style='font-size:28px;'>${a}</p></div>
+<div class='card'><h3>Em Risco</h3><p class='status-Em-Risco' style='font-size:28px;'>${r}</p></div>
+<div class='card'><h3>No Prazo</h3><p class='status-Normal' style='font-size:28px;'>${n}</p></div>`;}
+function renderFilters(){let areas=[...new Set(allData.map(x=>x.central))].sort();let html=`<button class='filter-btn ${currentFilter==='Todos'?'active':''}' onclick='setFilter("Todos")'>Todos</button>`;areas.forEach(c=>{html+=`<button class='filter-btn ${currentFilter===c?'active':''}' onclick='setFilter("${c}")'>${c}</button>`});document.getElementById('filter-area').innerHTML=html;} 
+function setFilter(f){currentFilter=f;renderTable();render();}
+let chart1,chart2;
+function renderCharts(){let atras=allData.filter(x=>x.status==='Atrasado').length;let risco=allData.filter(x=>x.status==='Em Risco').length;let norm=allData.filter(x=>x.status==='Normal').length;if(chart1)chart1.destroy();chart1=new Chart(document.getElementById('chartAtrasos'),{type:'pie',data:{labels:['Atrasado','Em Risco','Normal'],datasets:[{data:[atras,risco,norm]}]}});
+let cent={};allData.forEach(x=>{cent[x.central]=(cent[x.central]||0)+1});if(chart2)chart2.destroy();chart2=new Chart(document.getElementById('chartCentral'),{type:'bar',data:{labels:Object.keys(cent),datasets:[{data:Object.values(cent)}]}});
 }
-
-function solicitarFrete(item) { const message = encodeURIComponent( Olá, gostaria de solicitar um orçamento com ${item.name}.\nOrigem: ${originCep}\nDestino: ${destCep}\nPeso: ${weight} kg\nDimensões: ${length}x${width}x${height} cm\nTipo: ${cargoType}\nPreço estimado: R$ ${item.price} ); // opens WhatsApp (works on mobile/desktop with WhatsApp Web) window.open(https://wa.me/559999999999?text=${message}, '_blank'); }
-
-function handleContactSubmit(e) { e.preventDefault(); alert('Mensagem enviada — (simulação). Em produção integraria um backend ou e-mail.'); setContact({ name: '', email: '', message: '' }); }
-
-return ( <div className="min-h-screen flex flex-col bg-white text-slate-800"> {/* Header */} <header className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-sm border-b"> <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8"> <nav className="flex items-center justify-between h-16"> <a href="/#home" className="flex items-center gap-3"> <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold">CF</div> <div className="hidden sm:block"> <div className="text-lg font-semibold">CentralFrete</div> <div className="text-xs text-slate-500">Logística & Cálculo de Fretes</div> </div> </a>
-
-<div className="hidden md:flex items-center gap-6">
-          <a href="#calc" className="text-sm hover:text-blue-600">Calcule seu frete</a>
-          <a href="#about" className="text-sm hover:text-blue-600">Sobre</a>
-          <a href="#contact" className="text-sm hover:text-blue-600">Contato</a>
-          <a href="https://wa.me/559999999999" target="_blank" rel="noreferrer" className="ml-3 inline-flex items-center gap-2 px-3 py-2 rounded-md bg-blue-600 text-white text-sm">WhatsApp</a>
-        </div>
-
-        <div className="md:hidden">
-          <MobileMenu />
-        </div>
-      </nav>
-    </div>
-  </header>
-
-  <main className="pt-20 w-full">
-    {/* Hero */}
-    <section id="home" className="bg-gradient-to-b from-blue-50 to-white">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-          <motion.div initial={{ x: -30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ duration: 0.6 }}>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900">Calcule seu frete em segundos</h1>
-            <p className="mt-4 text-slate-600">Compare preços e prazos de várias transportadoras. Solução pensada para empresas de logística, e-commerce e operações que precisam otimizar custos.</p>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <a href="#calc" className="inline-block px-5 py-3 rounded-md bg-blue-600 text-white font-medium shadow">Calcule seu frete</a>
-              <a href="#about" className="inline-block px-5 py-3 rounded-md border border-blue-100 text-blue-700">Saiba mais</a>
-            </div>
-
-            <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {benefitIcons.map((b) => (
-                <div key={b.title} className="flex items-start gap-3">
-                  <div className="w-10 h-10 flex items-center justify-center rounded-md bg-white shadow-sm border">
-                    <span aria-hidden>{b.icon}</span>
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold">{b.title}</div>
-                    <div className="text-xs text-slate-500">{b.subtitle}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-          </motion.div>
-
-          <motion.div initial={{ scale: 0.98, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.6 }}>
-            <div className="bg-white rounded-xl shadow p-6">
-              <h3 className="text-lg font-semibold">Calculadora de Fretes</h3>
-              <p className="text-sm text-slate-500">Preencha origem e destino para ver cotações instantâneas.</p>
-
-              <form id="calc" className="mt-4 space-y-3" onSubmit={calculateFrete}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input value={originCep} onChange={e => setOriginCep(e.target.value)} placeholder="CEP de origem" className="p-3 border rounded" />
-                  <input value={destCep} onChange={e => setDestCep(e.target.value)} placeholder="CEP de destino" className="p-3 border rounded" />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input value={weight} onChange={e => setWeight(e.target.value)} placeholder="Peso (kg)" type="number" min="0.1" step="0.1" className="p-3 border rounded" />
-                  <input value={length} onChange={e => setLength(e.target.value)} placeholder="Comprimento (cm)" type="number" className="p-3 border rounded" />
-                  <input value={width} onChange={e => setWidth(e.target.value)} placeholder="Largura (cm)" type="number" className="p-3 border rounded" />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input value={height} onChange={e => setHeight(e.target.value)} placeholder="Altura (cm)" type="number" className="p-3 border rounded" />
-                  <select value={cargoType} onChange={e => setCargoType(e.target.value)} className="p-3 border rounded">
-                    <option>Normal</option>
-                    <option>Frágil</option>
-                    <option>Perigosa</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button type="submit" className="px-4 py-2 rounded-md bg-blue-600 text-white font-medium">{loading ? 'Calculando...' : 'Ver cotações'}</button>
-                  <button type="button" onClick={() => { setOriginCep(''); setDestCep(''); setWeight('1'); setLength('30'); setWidth('30'); setHeight('30'); setCargoType('Normal'); setResults([]); }} className="px-4 py-2 rounded-md border">Limpar</button>
-                </div>
-              </form>
-
-              {/* Results */}
-              <div className="mt-4">
-                {results.length === 0 && !loading && <div className="text-sm text-slate-500">Nenhuma cotação. Faça um cálculo.</div>}
-
-                <div className="mt-2 space-y-3">
-                  {results.map(r => (
-                    <motion.div key={r.id} initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }} className="p-3 border rounded flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold">{r.name}</div>
-                        <div className="text-xs text-slate-500">Prazo: {r.deliveryWindow}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold">R$ {r.price.toLocaleString('pt-BR')}</div>
-                        <button onClick={() => solicitarFrete(r)} className="mt-2 px-3 py-1 rounded-md bg-blue-600 text-white text-sm">Solicitar Frete</button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-    </section>
-
-    {/* About */}
-    <section id="about" className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-        <h2 className="text-2xl font-bold">Sobre a CentralFrete</h2>
-        <p className="mt-4 text-slate-600">Somos uma plataforma independente que ajuda empresas a comparar fretes em segundos. Nossa missão é transparência, economia e agilidade. Trabalhamos com transportadoras parceiras e oferecemos suporte em todo o Brasil.</p>
-
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <CredCard title="Experiência" text="+10 anos no mercado de logística e operação." />
-          <CredCard title="Segurança" text="Seguro de carga e parceiros certificados." />
-          <CredCard title="Cobertura" text="Atuamos em todos os estados brasileiros." />
-        </div>
-      </motion.div>
-    </section>
-
-    {/* Contact */}
-    <section id="contact" className="bg-blue-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6 }}>
-          <h2 className="text-2xl font-bold">Contato</h2>
-          <p className="mt-2 text-slate-600">Tem dúvidas? Envie uma mensagem ou fale conosco pelo WhatsApp.</p>
-
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <form onSubmit={handleContactSubmit} className="space-y-3 bg-white p-6 rounded shadow">
-              <input required value={contact.name} onChange={e => setContact(s => ({ ...s, name: e.target.value }))} placeholder="Seu nome" className="p-3 border rounded w-full" />
-              <input required value={contact.email} onChange={e => setContact(s => ({ ...s, email: e.target.value }))} placeholder="Seu e-mail" className="p-3 border rounded w-full" />
-              <textarea required value={contact.message} onChange={e => setContact(s => ({ ...s, message: e.target.value }))} placeholder="Sua mensagem" className="p-3 border rounded w-full h-32" />
-              <div className="flex gap-3">
-                <button type="submit" className="px-4 py-2 rounded bg-blue-600 text-white">Enviar</button>
-                <a href="https://wa.me/559999999999?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20voc%C3%AAs" target="_blank" rel="noreferrer" className="px-4 py-2 rounded border">WhatsApp</a>
-              </div>
-            </form>
-
-            <div className="space-y-4">
-              <div className="bg-white p-6 rounded shadow">
-                <h3 className="font-semibold">Informações</h3>
-                <p className="text-sm text-slate-600 mt-2">Telefone: (99) 99999-9999</p>
-                <p className="text-sm text-slate-600">Email: contato@centralfrete.ex</p>
-                <p className="text-sm text-slate-600">Atendimento: Segunda a Sexta, 8h às 18h</p>
-              </div>
-
-              <div className="bg-white p-6 rounded shadow">
-                <h3 className="font-semibold">Localização</h3>
-                <p className="text-sm text-slate-600 mt-2">Matriz: Rua Exemplo, 123 - São Paulo, SP</p>
-              </div>
-            </div>
-
-          </div>
-        </motion.div>
-      </div>
-    </section>
-
-  </main>
-
-  <Footer />
-</div>
-
-); }
-
-/* ---------- Small helper components and data ---------- */
-
-const benefitIcons = [ { title: 'Rápido', subtitle: 'Resultados em segundos', icon: svgBolt }, { title: 'Econômico', subtitle: 'Compare preços', icon: svgTag }, { title: 'Seguro', subtitle: 'Parceiros certificados', icon: svgShield }, { title: 'Suporte', subtitle: 'Atendimento dedicado', icon: svgChat }, ];
-
-function CredCard({ title, text }) { return ( <div className="p-4 bg-white rounded shadow-sm"> <div className="text-lg font-semibold">{title}</div> <div className="text-sm text-slate-600 mt-2">{text}</div> </div> ); }
-
-function Footer() { return ( <footer className="mt-12 bg-blue-900 text-white"> <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row items-center justify-between gap-4"> <div> <div className="font-bold">CentralFrete</div> <div className="text-sm text-blue-200">© {new Date().getFullYear()} CentralFrete. Todos os direitos reservados.</div> </div>
-
-<div className="flex items-center gap-4">
-      <a href="#home" className="text-sm hover:text-blue-200">Home</a>
-      <a href="#about" className="text-sm hover:text-blue-200">Sobre</a>
-      <a href="#contact" className="text-sm hover:text-blue-200">Contato</a>
-      <a href="https://wa.me/559999999999" target="_blank" rel="noreferrer" className="px-3 py-2 rounded bg-white text-blue-900">WhatsApp</a>
-    </div>
-  </div>
-</footer>
-
-); }
-
-function MobileMenu() { const [open, setOpen] = useState(false); return ( <div className="relative"> <button onClick={() => setOpen(s => !s)} className="p-2 rounded-md border"> <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg> </button>
-
-{open && (
-    <div className="absolute right-0 mt-2 w-48 bg-white rounded shadow p-3">
-      <a href="#calc" onClick={() => setOpen(false)} className="block py-2">Calcule seu frete</a>
-      <a href="#about" onClick={() => setOpen(false)} className="block py-2">Sobre</a>
-      <a href="#contact" onClick={() => setOpen(false)} className="block py-2">Contato</a>
-    </div>
-  )}
-</div>
-
-); }
-
-/* ---------- Inline SVG icons ---------- */ function svgBolt() { return ( <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13 2L3 14h7l-1 8L21 10h-7l-1-8z" fill="#0ea5e9"/></svg> ); }
-
-function svgTag() { return ( <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20.59 13.41L11.17 4 4 11.17l9.41 9.41L20.59 13.41zM7.5 10a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" fill="#0ea5e9"/></svg> ); }
-
-function svgShield() { return ( <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l7 4v6c0 5-3.8 9.7-7 10-3.2-.3-7-5-7-10V6l7-4z" fill="#0ea5e9"/></svg> ); }
-
-function svgChat() { return ( <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 6h-18v12h4v4l4-4h10z" fill="#0ea5e9"/></svg> ); }
+function renderTable(){let data=currentFilter==='Todos'?allData:allData.filter(x=>x.central===currentFilter);let tb=document.querySelector('#ct-table tbody');tb.innerHTML='';data.forEach(x=>{tb.innerHTML+=`<tr><td><span class='status status-${x.status.replace(/ /g,'-')}'>${x.status}</span></td><td>${x.ct||''}</td><td>${x.nf||''}</td><td>${x.dest||''}</td><td>${x.central}</td><td>${x.pag||''}</td><td>${x.vol||''}</td><td>${x.emi||''}</td><td>${x.ult||''}</td></tr>`;});}
+</script>
+</body>
+</html>
